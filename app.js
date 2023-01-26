@@ -3,11 +3,12 @@ require('dotenv').config();
 const express = require("express");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10; 
 
 
 const app = express();
-console.log(process.env.API_KEY);
+
 
 app.use(express.static("public"));
 app.set('view engine','ejs');
@@ -17,12 +18,12 @@ mongoose.set("strictQuery",false);
 mongoose.connect("mongodb://127.0.0.1:27017/userDB")
       // .connect("mongodb://127.0.0.1:27017")
     
-      .then(() => {
-        console.log("Connected to Database");
-      })
-      .catch((err) => {
-        console.log("Not Connected to Database ERROR! ", err);
-      });
+    //   .then(() => {
+    //     console.log("Connected to Database");
+    //   })
+    //   .catch((err) => {
+    //     console.log("Not Connected to Database ERROR! ", err);
+    //   });
 
 const userSchema = new mongoose.Schema({
     email: String,
@@ -48,44 +49,51 @@ app.get("/register",function(req,res){
 
 
 app.post("/register",function(req,res){
-    const newUser =  new User({
-        email: req.body.username,
-        password: md5(req.body.password)
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        if(!err){
+        const newUser =  new User({
+            email: req.body.username,
+            password: hash
+        });
+        }
+    
+        newUser.save(function(err){
+            if(err){
+                console.log(err);
+            }else{
+                res.render("secrets");
+            }
+        });
     });
 
-    newUser.save(function(err){
-        if(err){
-            console.log(err);
-        }else{
-            res.render("secrets");
-        }
-    });
 });
 
 
 
 app.post("/login", (req, res) => {
     const username = req.body.username;
-    const password = md5(req.body.password);
+    const password = req.body.password;
    
     User.findOne({email: username}, (err, foundUser) => {
       if (err) {
         console.log(err);
       } else {
         if (foundUser) {
-          if (foundUser.password === password) {
-            res.render("secrets");
-            console.log("New login (" + username + ")");
-          } else {
-            res.render("login", {errMsg: "Password incorrect", username: username, password: password});
-          }
-        } else {
+            bcrypt.compare(password, foundUser.password, function(err, result) {
+                if(result == true){
+                res.render("secrets");
+                console.log("New login (" + username + ")");
+                }else{
+                    res.render("login", {errMsg: "Password incorrect", username: username, password: password});
+                }
+            });
+        }
+        else {
           res.render("login", {errMsg: "Email doesn't exists", username: username, password: password});
         }
       }
     });
   });
-
 
 
 
